@@ -1,0 +1,32 @@
+{
+  "available_scenarios": [
+    {
+      "Town04": [
+        {
+          "available_event_configurations": [
+            {
+              "transform": {
+                "pitch": 360.0,
+                "x": -206.33070373535156,
+                "y": 407.5960998535156,
+                "yaw": 179.79180908203125,
+                "z": 0.0
+              },
+              "other_actors": {
+                  "right": [
+                    {
+                      "x": -204.34341430664062,
+                      "y": 404.09613037109375,
+                      "yaw": 179.79180908203125,
+                      "z": 0.0
+                    }
+                  ]
+              }
+            }
+          ],
+          "scenario_type": "Scenario11"
+        }
+      ]
+    }
+  ]
+}

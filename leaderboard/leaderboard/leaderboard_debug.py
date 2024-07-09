@@ -22,6 +22,30 @@ import os
 import pkg_resources
 import sys
 
+
+CARLA_ROOT = "/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/transfuser/carla"
+WORK_DIR = "/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/transfuser_github/transfuser"
+
+os.environ['CARLA_ROOT'] = CARLA_ROOT
+os.environ['WORK_DIR'] = WORK_DIR
+os.environ['CARLA_SERVER'] = CARLA_ROOT + "/CarlaUE4.sh"
+
+sys.path.insert(1,f"{CARLA_ROOT}/PythonAPI")
+#sys.path.insert(2,f"{CARLA_ROOT}/PythonAPI/carla")
+sys.path.insert(2,f"{CARLA_ROOT}/PythonAPI/carla/dist/carla-0.9.10-py3.7-linux-x86_64.egg")
+SCENARIO_RUNNER_ROOT = f"{WORK_DIR}/scenario_runner"
+LEADERBOARD_ROOT = f"{WORK_DIR}/leaderboard"
+os.environ['SCENARIO_RUNNER_ROOT'] = SCENARIO_RUNNER_ROOT
+os.environ['LEADERBOARD_ROOT'] = LEADERBOARD_ROOT
+
+sys.path.insert(1, f"{CARLA_ROOT}/PythonAPI/carla")
+sys.path.insert(2, SCENARIO_RUNNER_ROOT)
+sys.path.insert(3, LEADERBOARD_ROOT)
+sys.path.insert(4, WORK_DIR)
+
+os.environ['DATAGEN'] = '1'
+
+
 import carla
 import signal
 
@@ -85,10 +109,10 @@ class LeaderboardEvaluator(object):
         self.world = self.client.load_world('Town01')
         self.traffic_manager = self.client.get_trafficmanager(int(args.trafficManagerPort))
 
-        dist = pkg_resources.get_distribution("carla")
-        if dist.version != 'leaderboard':
-            if LooseVersion(dist.version) < LooseVersion('0.9.10'):
-                raise ImportError("CARLA version 0.9.10.1 or newer required. CARLA version found: {}".format(dist))
+        #dist = pkg_resources.get_distribution("carla")
+        #if dist.version != 'leaderboard':
+        #    if LooseVersion(dist.version) < LooseVersion('0.9.10'):
+        #       raise ImportError("CARLA version 0.9.10.1 or newer required. CARLA version found: {}".format(dist))
 
         # Load agent
         module_name = os.path.basename(args.agent).split('.')[0]
@@ -440,17 +464,17 @@ def main():
     # simulation setup
     parser.add_argument('--routes',
                         help='Name of the route to be executed. Point to the route_xml_file to be executed.',
-                        required=True)
+                        default='')
     parser.add_argument('--scenarios',
                         help='Name of the scenario annotation file to be mixed with the route.',
-                        required=True)
+                        default='')
     parser.add_argument('--repetitions',
                         type=int,
                         default=1,
                         help='Number of repetitions per route.')
 
     # agent-related options
-    parser.add_argument("-a", "--agent", type=str, help="Path to Agent's py file to evaluate", required=True)
+    parser.add_argument("-a", "--agent", type=str, help="Path to Agent's py file to evaluate", default='')
     parser.add_argument("--agent-config", type=str, help="Path to Agent's configuration file", default="")
 
     parser.add_argument("--track", type=str, default='SENSORS', help="Participation track: SENSORS, MAP")
@@ -460,7 +484,26 @@ def main():
                         help="Path to checkpoint used for saving statistics and resuming")
 
     arguments = parser.parse_args()
-    
+
+    arguments.scenarios = WORK_DIR + "/leaderboard/data/training/scenarios/Scenario11/Town04_Scenario11.json"
+    arguments.routes = WORK_DIR + "/leaderboard/data/training/routes/Scenario11/Town04_Scenario11.xml"
+    arguments.repetitions = 1
+    arguments.track = 'MAP'
+    arguments.checkpoint = WORK_DIR + "/results/Scenario11.json"
+    arguments.agent = WORK_DIR + "/team_code_autopilot/data_agent.py"
+    arguments.debug = 1
+    arguments.resume = True
+
+    os.environ['SCENARIOS'] = arguments.scenarios
+    os.environ['ROUTES'] = arguments.routes
+    os.environ['REPETITIONS'] = str(arguments.repetitions)
+    os.environ['CHALLENGE_TRACK_CODENAME'] = arguments.track
+    os.environ['CHECKPOINT_ENDPOINT'] = arguments.checkpoint
+    os.environ['SAVE_PATH'] = WORK_DIR + "/results/Scenario11"
+    os.environ['TEAM_AGENT'] = arguments.agent
+    os.environ['DEBUG_CHALLENGE'] = str(arguments.debug)
+    os.environ['RESUME'] = '1'
+
     statistics_manager = StatisticsManager()
 
     try:
