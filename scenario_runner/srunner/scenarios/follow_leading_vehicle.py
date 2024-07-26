@@ -183,7 +183,8 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
 
     timeout = 120            # Timeout of scenario in seconds
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True):
+    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+                 timeout=60):
         """
         Setup all relevant parameters and create scenario
         """

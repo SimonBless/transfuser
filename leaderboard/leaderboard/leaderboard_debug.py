@@ -489,7 +489,7 @@ def main():
     arguments.routes = WORK_DIR + "/leaderboard/data/training/routes/Scenario11/Town04_Scenario11.xml"
     arguments.repetitions = 1
     arguments.track = 'MAP'
-    arguments.checkpoint = WORK_DIR + "/results/Scenario11.json"
+    arguments.checkpoint = WORK_DIR + "/results/test/Scenario11.json"
     arguments.agent = WORK_DIR + "/team_code_autopilot/data_agent.py"
     arguments.debug = 1
     arguments.resume = True
@@ -499,7 +499,7 @@ def main():
     os.environ['REPETITIONS'] = str(arguments.repetitions)
     os.environ['CHALLENGE_TRACK_CODENAME'] = arguments.track
     os.environ['CHECKPOINT_ENDPOINT'] = arguments.checkpoint
-    os.environ['SAVE_PATH'] = WORK_DIR + "/results/Scenario11"
+    os.environ['SAVE_PATH'] = WORK_DIR + "/results/test/Scenario11"
     os.environ['TEAM_AGENT'] = arguments.agent
     os.environ['DEBUG_CHALLENGE'] = str(arguments.debug)
     os.environ['RESUME'] = '1'
@@ -514,6 +514,7 @@ def main():
         traceback.print_exc()
     finally:
         del leaderboard_evaluator
+
 
 
 if __name__ == '__main__':

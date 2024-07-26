@@ -71,6 +71,16 @@ def main():
 
 
     args = parser.parse_args()
+    args.batch_size = 10
+    args.logdir = ("/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/"
+                   "transfuser_github/transfuser/results/training/training_log")
+    args.parallel_training = 0
+    args.root_dir = ("/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/"
+                   "transfuser_github/transfuser/results/training/training_dataset")
+    args.load_file = ("/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/"
+                   "transfuser_github/transfuser/model/model_seed1_39.pth")
+    #print(args)
+    #exit()
     args.logdir = os.path.join(args.logdir, args.id)
     parallel = bool(args.parallel_training)
 
@@ -179,9 +189,24 @@ def main():
     if (not (args.load_file is None)):
         # Load checkpoint
         print("=============load=================")
-        model.load_state_dict(torch.load(args.load_file, map_location=model.device))
-        optimizer.load_state_dict(torch.load(args.load_file.replace("model_", "optimizer_"), map_location=model.device))
+        model_data = torch.load(args.load_file, map_location="cpu")
 
+        model.load_state_dict(model_data, strict=False)
+
+        #optimizer.load_state_dict(torch.load(args.load_file.replace("model_", "optimizer_"), map_location=model.device))
+
+    # Freeze certain weights:
+    #   - freeze sensor fusion part
+    print(model)
+    for param in model._model.parameters():
+        param.requires_grad = False
+    #   - freeze image segmentation part (only used as auxiliary loss for global scene understanding)
+    for param in model.seg_decoder.parameters():
+        param.requires_grad = False
+    #   - freeze depth prediction part (only used as auxiliary loss for global scene understanding)
+    for param in model.depth_decoder.parameters():
+        param.requires_grad = False
+    #exit()
 
     trainer = Engine(model=model, optimizer=optimizer, dataloader_train=dataloader_train, dataloader_val=dataloader_val,
                      args=args, config=config, writer=writer, device=device, rank=rank, world_size=world_size,
@@ -394,6 +419,6 @@ def seed_worker(worker_id):
 if __name__ == "__main__":
     # The default method fork can run into deadlocks.
     # To use the dataloader with multiple workers forkserver or spawn should be used.
-    mp.set_start_method('fork')
-    print("Start method of multiprocessing:", mp.get_start_method())
+    #mp.set_start_method('fork')
+    #print("Start method of multiprocessing:", mp.get_start_method())
     main()
