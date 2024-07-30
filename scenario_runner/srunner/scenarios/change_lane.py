@@ -58,12 +58,12 @@ class ChangeLane(BasicScenario):
         self._map = CarlaDataProvider.get_map()
         self._reference_waypoint = self._map.get_waypoint(config.trigger_points[0].location)
 
-        self._fast_vehicle_velocity = 70
-        self._slow_vehicle_velocity = 0
-        self._change_lane_velocity = 15
+        self._fast_vehicle_velocity = 4
+        self._slow_vehicle_velocity = 0.01
+        self._change_lane_velocity = 4
 
         self._slow_vehicle_distance = 100
-        self._fast_vehicle_distance = 20
+        self._fast_vehicle_distance = 15
         self._trigger_distance = 30
         self._max_brake = 1
 
@@ -85,28 +85,46 @@ class ChangeLane(BasicScenario):
     def _initialize_actors(self, config):
 
         # add actors from xml file
-        for actor in config.other_actors:
-            vehicle = CarlaDataProvider.request_new_actor(actor.model, actor.transform)
-            self.other_actors.append(vehicle)
-            vehicle.set_simulate_physics(enabled=False)
+        #for actor in config.other_actors:
+        #    vehicle = CarlaDataProvider.request_new_actor(actor.model, actor.transform)
+        #    self.other_actors.append(vehicle)
+        #    vehicle.set_simulate_physics(enabled=False)
 
         # fast vehicle, tesla
         # transform visible
         fast_car_waypoint, _ = get_waypoint_in_distance(self._reference_waypoint, self._fast_vehicle_distance)
+        fast_car_transform = carla.Transform(
+            carla.Location(fast_car_waypoint.transform.location.x,
+                           fast_car_waypoint.transform.location.y,
+                           fast_car_waypoint.transform.location.z - 500),
+            fast_car_waypoint.transform.rotation)
         self.fast_car_visible = carla.Transform(
             carla.Location(fast_car_waypoint.transform.location.x,
                            fast_car_waypoint.transform.location.y,
                            fast_car_waypoint.transform.location.z + 1),
             fast_car_waypoint.transform.rotation)
+        fast_car = CarlaDataProvider.request_new_actor('vehicle.tesla.model3', fast_car_transform)
+
+        fast_car.set_simulate_physics(enabled=False)
+        self.other_actors.append(fast_car)
 
         # slow vehicle, vw
         # transform visible
         slow_car_waypoint, _ = get_waypoint_in_distance(self._reference_waypoint, self._slow_vehicle_distance)
+        slow_car_transform = carla.Transform(
+            carla.Location(slow_car_waypoint.transform.location.x,
+                           slow_car_waypoint.transform.location.y,
+                           slow_car_waypoint.transform.location.z - 500),
+            slow_car_waypoint.transform.rotation)
         self.slow_car_visible = carla.Transform(
             carla.Location(slow_car_waypoint.transform.location.x,
                            slow_car_waypoint.transform.location.y,
-                           slow_car_waypoint.transform.location.z),
+                           slow_car_waypoint.transform.location.z + 1),
             slow_car_waypoint.transform.rotation)
+        slow_car = CarlaDataProvider.request_new_actor('vehicle.volkswagen.t2', slow_car_transform)
+
+        slow_car.set_simulate_physics(enabled=False)
+        self.other_actors.append(slow_car)
 
     def _create_behavior(self):
 
@@ -119,7 +137,7 @@ class ChangeLane(BasicScenario):
         # brake, avoid rolling backwarts
         brake = StopVehicle(self.other_actors[1], self._max_brake)
         sequence_vw.add_child(brake)
-        sequence_vw.add_child(Idle())
+        sequence_vw.add_child(WaypointFollower(self.other_actors[1], self._slow_vehicle_velocity))
 
         # sequence tesla
         # make visible
