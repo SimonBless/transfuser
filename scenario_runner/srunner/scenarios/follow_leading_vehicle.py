@@ -191,7 +191,7 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
         self._map = CarlaDataProvider.get_map()
         self._first_actor_location = 25
         self._second_actor_location = self._first_actor_location + 41
-        self._first_actor_speed = 10
+        self._first_actor_speed = 4
         self._second_actor_speed = 1.5
         self._reference_waypoint = self._map.get_waypoint(config.trigger_points[0].location)
         self._other_actor_max_brake = 1.0

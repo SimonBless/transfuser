@@ -62,7 +62,7 @@ class ChangeLane(BasicScenario):
         self._slow_vehicle_velocity = 0.01
         self._change_lane_velocity = 4
 
-        self._slow_vehicle_distance = 100
+        self._slow_vehicle_distance = 80
         self._fast_vehicle_distance = 15
         self._trigger_distance = 30
         self._max_brake = 1
