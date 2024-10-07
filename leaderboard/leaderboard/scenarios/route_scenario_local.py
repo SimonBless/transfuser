@@ -30,9 +30,11 @@ from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.scenarios.control_loss import ControlLoss
 from srunner.scenarios.cut_in import CutIn
-from srunner.scenarios.follow_leading_vehicle import FollowLeadingVehicle
+#from srunner.scenarios.construction_crash_vehicle import ConstructionObstacle
+from srunner.scenarios.follow_leading_vehicle import FollowLeadingVehicleWithObstacle
 from srunner.scenarios.object_crash_vehicle import DynamicObjectCrossing
 from srunner.scenarios.object_crash_intersection import VehicleTurningRoute
+from srunner.scenarios.change_lane import ChangeLane
 from srunner.scenarios.other_leading_vehicle import OtherLeadingVehicle
 from srunner.scenarios.maneuver_opposite_direction import ManeuverOppositeDirection
 from srunner.scenarios.junction_crossing_route import SignalJunctionCrossingRoute, NoSignalJunctionCrossingRoute
@@ -55,7 +57,7 @@ INITIAL_SECONDS_DELAY = 5.0
 
 NUMBER_CLASS_TRANSLATION = {
     "Scenario1": ControlLoss,
-    "Scenario2": FollowLeadingVehicle,
+    "Scenario2": FollowLeadingVehicleWithObstacle,
     "Scenario3": DynamicObjectCrossing,
     "Scenario4": VehicleTurningRoute,
     "Scenario5": OtherLeadingVehicle,
@@ -64,7 +66,8 @@ NUMBER_CLASS_TRANSLATION = {
     "Scenario8": SignalJunctionCrossingRoute,
     "Scenario9": SignalJunctionCrossingRoute,
     "Scenario10": NoSignalJunctionCrossingRoute,
-    "Scenario11": CutIn
+    "Scenario11": CutIn,
+    "Scenario12": ChangeLane
 }
 
 
@@ -119,6 +122,7 @@ def convert_json_to_actor(actor_dict):
     node.set('y', actor_dict['y'])
     node.set('z', actor_dict['z'])
     node.set('yaw', actor_dict['yaw'])
+    node.set('model', actor_dict['model'])
 
     return ActorConfigurationData.parse_from_node(node, 'simulation')
 
@@ -391,7 +395,8 @@ class RouteScenario(BasicScenario):
             scenario_configuration.other_actors = list_of_actor_conf_instances
             scenario_configuration.trigger_points = [egoactor_trigger_position]
             scenario_configuration.subtype = definition['scenario_type']
-            scenario_configuration.name = "LEFT"
+            if list_of_actor_conf_instances:
+                scenario_configuration.name = next(iter(definition['other_actors'].keys()))
             scenario_configuration.ego_vehicles = [ActorConfigurationData('vehicle.lincoln.mkz2017',
                                                                           ego_vehicle.get_transform(),
                                                                           'hero')]
@@ -466,6 +471,7 @@ class RouteScenario(BasicScenario):
 
             amount = town_amount[config.town] if config.town in town_amount else 0
             amount = random.randint(amount, 2*amount)
+            #amount = 0
         else:
             amount = 500 # use all spawn points
 
