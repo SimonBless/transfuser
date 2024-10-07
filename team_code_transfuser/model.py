@@ -953,6 +953,11 @@ class LidarCenterNet(nn.Module):
             ds_image = cv2.resize(ds_image, (640, 256))
             ds_image = np.concatenate([ds_image, np.zeros_like(ds_image[:50])], axis=0)
 
+        image = np.concatenate(list(lidar_bev.detach().cpu().numpy()[i][:3]), axis=1)
+        image = (image * 255).astype(np.uint8)
+        image = np.stack([image, image, image], axis=-1)
+        image = np.concatenate([image, np.zeros_like(image[:50])], axis=0)
+        cv2.imwrite(str(save_path + "/lidar%d.png" % (step // 2)), image)
         images = np.concatenate(list(lidar_bev.detach().cpu().numpy()[i][:2]), axis=1)
         images = (images * 255).astype(np.uint8)
         images = np.stack([images, images, images], axis=-1)
@@ -1020,7 +1025,6 @@ class LidarCenterNet(nn.Module):
             draw.text((0, 0), "Angle error:        %.2f°" % (angle_error), font=font)
 
         bev_image = np.array(bev_image)
-
         rgb_image = rgb[i].permute(1, 2, 0).detach().cpu().numpy()[:, :, [2, 1, 0]]
         rgb_image = cv2.resize(rgb_image, (1280 + 128, 320 + 32))
         assert (config.multitask)

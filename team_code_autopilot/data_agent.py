@@ -8,10 +8,22 @@ import numpy as np
 import pygame
 import json
 
+from PIL import Image
+
 from utils import lts_rendering
 from utils.map_utils import MapImage, encode_npy_to_pil, PIXELS_PER_METER
 from autopilot import AutoPilot
 
+import os
+import pathlib
+
+SAVE_PATH = os.environ.get('_SAVE_PATH')
+ROUTE_COUNTER = 0
+
+if not SAVE_PATH:
+    SAVE_PATH = None
+else:
+    pathlib.Path(SAVE_PATH).mkdir(parents=True, exist_ok=True)
 
 def get_entry_point():
     return 'DataAgent'
@@ -62,6 +74,16 @@ class DataAgent(AutoPilot):
 
     def _init(self, hd_map):
         super()._init(hd_map)
+
+        self._save_path = SAVE_PATH
+        global ROUTE_COUNTER
+        if SAVE_PATH:
+            self._save_path = f"{SAVE_PATH}/route{ROUTE_COUNTER}"
+            pathlib.Path(self._save_path).mkdir(parents=True, exist_ok=True)
+            ROUTE_COUNTER += 1
+            self.save_path_speed = f"{self._save_path}/speed{ROUTE_COUNTER}.csv"
+        #self.i = 0
+
         self._sensors = self.sensor_interface._sensors_objects
 
         self.vehicle_template = torch.ones(1, 1, 22, 9, device='cuda')
@@ -163,6 +185,20 @@ class DataAgent(AutoPilot):
 
         return result
 
+    def shift_x_scale_crop(self, image, scale, crop, crop_shift=0.0):
+        crop_h, crop_w = crop
+        (width, height) = (int(image.width // scale), int(image.height // scale))
+        im_resized = image.resize((width, height))
+        image = np.array(im_resized)
+        start_y = height // 2 - crop_h // 2
+        start_x = width // 2 - crop_w // 2
+
+        # only shift in x direction
+        start_x += int(crop_shift // scale)
+        cropped_image = image[start_y:start_y + crop_h, start_x:start_x + crop_w]
+        cropped_image = np.transpose(cropped_image, (2, 0, 1))
+        return cropped_image
+
     def tick(self, input_data):
         result = super().tick(input_data)
 
@@ -197,7 +233,24 @@ class DataAgent(AutoPilot):
                             'cars': cars,
                             'semantics': semantics,
                             'depth': depth})
-
+        with open(self.save_path_speed, "a") as f:
+            f.write(f"{str(result['speed'])},{str(result['gps'])},{str(result['compass'])}" + "\n")
+        '''
+        if self.i % 100 == 0:
+            image = Image.fromarray(result['rgb'])
+            image_degrees = []
+            for degree in [0]:
+                crop_shift = degree / 60 * 320
+                rgb = torch.from_numpy(
+                    self.shift_x_scale_crop(image, scale=1, crop=(160, 704),
+                                            crop_shift=crop_shift)).unsqueeze(0)
+                image_degrees.append(rgb.to('cuda', dtype=torch.float32))
+            image = torch.cat(image_degrees, dim=0)
+            rgb_image = image.permute(1, 2, 0).detach().cpu().numpy()[:, :, [2, 1, 0]]
+            rgb_image = cv2.resize(rgb_image, (1280 + 128, 320 + 32))
+            cv2.imwrite(os.path.join(self._save_path,('%d.png' % self.i)), rgb_image)
+        self.i += 1
+        '''
         return result
 
     @torch.no_grad()

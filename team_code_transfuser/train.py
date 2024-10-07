@@ -71,14 +71,22 @@ def main():
 
 
     args = parser.parse_args()
+
+    """
     args.batch_size = 10
     args.logdir = ("/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/"
-                   "transfuser_github/transfuser/results/training/training_log")
+                   "transfuser_github/transfuser/training/training_log")
     args.parallel_training = 0
     args.root_dir = ("/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/"
-                   "transfuser_github/transfuser/results/training/training_dataset")
+                   "transfuser_github/transfuser/training/training_dataset")
     args.load_file = ("/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/"
-                   "transfuser_github/transfuser/model/model_seed1_39.pth")
+                   "transfuser_github/transfuser/model_original/model_seed1_39.pth")
+    args.epochs = 1
+    args.val_every = 2
+    args.setting = "validation"
+    args.lr = 1e-4
+    """
+
     #print(args)
     #exit()
     args.logdir = os.path.join(args.logdir, args.id)
@@ -137,6 +145,7 @@ def main():
     # Create model and optimizers
     model = LidarCenterNet(config, device, args.backbone, args.image_architecture, args.lidar_architecture, bool(args.use_velocity))
 
+
     if (parallel == True):
         # Synchronizing the Batch Norms increases the Batch size with which they are compute by *num_gpus
         if(bool(args.sync_batch_norm) == True):
@@ -151,26 +160,72 @@ def main():
     else:
         optimizer = optim.AdamW(model.parameters(), lr=args.lr) # For single GPU training
 
+    if (not (args.load_file is None)):
+        # Load checkpoint
+        print("=============load=================")
+        model_data = torch.load(args.load_file, map_location="cpu")
+
+        # Update parameter names
+        if next(iter(model_data.keys())).startswith('module.'):
+            model_data = {k[7:]: v for k, v in model_data.items()}
+        model.load_state_dict(model_data, strict=False)
+
+    # Freeze image encoder
+    for param in model._model.image_encoder.parameters():
+        param.requires_grad = False
+    # Freeze lidar encoder
+    for param in model._model.lidar_encoder.parameters():
+        param.requires_grad = False
+
+    # Freeze image encoder batchnorm layers
+    for param in model._model.image_encoder.modules():
+        param.requires_grad = False
+        if isinstance(param, torch.nn.BatchNorm2d):
+            param.track_running_stats = False
+            param.eval()
+
+    # Freeze lidar encoder batchnorm layers
+    for param in model._model.lidar_encoder.modules():
+        param.requires_grad = False
+        if isinstance(param, torch.nn.BatchNorm2d):
+            param.track_running_stats = False
+            param.eval()
+
+    # Freeze transformers
+    for param in model._model.transformer1.parameters():
+        param.requires_grad = False
+    for param in model._model.transformer2.parameters():
+        param.requires_grad = False
+    for param in model._model.transformer3.parameters():
+        param.requires_grad = False
+    for param in model._model.transformer4.parameters():
+        param.requires_grad = False
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
-    print ('Total trainable parameters: ', params)
+    print('Total trainable parameters: ', params)
 
     # Data
     train_set = CARLA_Data(root=config.train_data, config=config, shared_dict=shared_dict)
-    val_set   = CARLA_Data(root=config.val_data,   config=config, shared_dict=shared_dict)
+    val_set = CARLA_Data(root=config.val_data, config=config, shared_dict=shared_dict)
 
     g_cuda = torch.Generator(device='cpu')
     g_cuda.manual_seed(torch.initial_seed())
 
-    if(parallel == True):
-        sampler_train = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True, num_replicas=world_size, rank=rank)
-        sampler_val   = torch.utils.data.distributed.DistributedSampler(val_set,   shuffle=True, num_replicas=world_size, rank=rank)
-        dataloader_train = DataLoader(train_set, sampler=sampler_train, batch_size=args.batch_size, worker_init_fn=seed_worker, generator=g_cuda, num_workers=8, pin_memory=True)
-        dataloader_val   = DataLoader(val_set,   sampler=sampler_val,   batch_size=args.batch_size, worker_init_fn=seed_worker, generator=g_cuda, num_workers=8, pin_memory=True)
+    if (parallel == True):
+        sampler_train = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True,
+                                                                        num_replicas=world_size, rank=rank)
+        sampler_val = torch.utils.data.distributed.DistributedSampler(val_set, shuffle=True, num_replicas=world_size,
+                                                                      rank=rank)
+        dataloader_train = DataLoader(train_set, sampler=sampler_train, batch_size=args.batch_size,
+                                      worker_init_fn=seed_worker, generator=g_cuda, num_workers=8, pin_memory=True)
+        dataloader_val = DataLoader(val_set, sampler=sampler_val, batch_size=args.batch_size,
+                                    worker_init_fn=seed_worker, generator=g_cuda, num_workers=8, pin_memory=True)
     else:
-      dataloader_train = DataLoader(train_set, shuffle=True, batch_size=args.batch_size, worker_init_fn=seed_worker, generator=g_cuda, num_workers=0, pin_memory=True)
-      dataloader_val   = DataLoader(val_set,   shuffle=True, batch_size=args.batch_size, worker_init_fn=seed_worker, generator=g_cuda, num_workers=0, pin_memory=True)
+        dataloader_train = DataLoader(train_set, shuffle=True, batch_size=args.batch_size, worker_init_fn=seed_worker,
+                                      generator=g_cuda, num_workers=0, pin_memory=True)
+        dataloader_val = DataLoader(val_set, shuffle=True, batch_size=args.batch_size, worker_init_fn=seed_worker,
+                                    generator=g_cuda, num_workers=0, pin_memory=True)
 
     # Create logdir
     if ((not os.path.isdir(args.logdir)) and (rank == 0)):
@@ -178,7 +233,7 @@ def main():
         os.makedirs(args.logdir, exist_ok=True)
 
     # We only need one process to log the losses
-    if(rank == 0):
+    if (rank == 0):
         writer = SummaryWriter(log_dir=args.logdir)
         # Log args
         with open(os.path.join(args.logdir, 'args.txt'), 'w') as f:
@@ -186,37 +241,18 @@ def main():
     else:
         writer = None
 
-    if (not (args.load_file is None)):
-        # Load checkpoint
-        print("=============load=================")
-        model_data = torch.load(args.load_file, map_location="cpu")
-
-        model.load_state_dict(model_data, strict=False)
-
-        #optimizer.load_state_dict(torch.load(args.load_file.replace("model_", "optimizer_"), map_location=model.device))
-
-    # Freeze certain weights:
-    #   - freeze sensor fusion part
-    print(model)
-    for param in model._model.parameters():
-        param.requires_grad = False
-    #   - freeze image segmentation part (only used as auxiliary loss for global scene understanding)
-    for param in model.seg_decoder.parameters():
-        param.requires_grad = False
-    #   - freeze depth prediction part (only used as auxiliary loss for global scene understanding)
-    for param in model.depth_decoder.parameters():
-        param.requires_grad = False
-    #exit()
+    # exit()
 
     trainer = Engine(model=model, optimizer=optimizer, dataloader_train=dataloader_train, dataloader_val=dataloader_val,
                      args=args, config=config, writer=writer, device=device, rank=rank, world_size=world_size,
                      parallel=parallel, cur_epoch=args.start_epoch)
 
     for epoch in range(trainer.cur_epoch, args.epochs):
-        if(parallel == True):
+        if (parallel == True):
             # Update the seed depending on the epoch so that the distributed sampler will use different shuffles across different epochs
             sampler_train.set_epoch(epoch)
-        if ((epoch == args.schedule_reduce_epoch_01) or (epoch==args.schedule_reduce_epoch_02)) and (args.schedule == 1):
+        if ((epoch == args.schedule_reduce_epoch_01) or (epoch == args.schedule_reduce_epoch_02)) and (
+                args.schedule == 1):
             current_lr = optimizer.param_groups[0]['lr']
             new_lr = current_lr * 0.1
             print("Reduce learning rate by factor 10 to:", new_lr)
@@ -224,23 +260,25 @@ def main():
                 g['lr'] = new_lr
         trainer.train()
 
-        if((args.setting != 'all') and (epoch % args.val_every == 0)):
+        if ((args.setting != 'all') and (epoch % args.val_every == 0)):
             trainer.validate()
 
         if (parallel == True):
             if (bool(args.zero_redundancy_optimizer) == True):
-                optimizer.consolidate_state_dict(0) # To save the whole optimizer we need to gather it on GPU 0.
+                optimizer.consolidate_state_dict(0)  # To save the whole optimizer we need to gather it on GPU 0.
             if (rank == 0):
                 trainer.save()
         else:
             trainer.save()
+
 
 class Engine(object):
     """
     Engine that runs training.
     """
 
-    def __init__(self, model, optimizer, dataloader_train, dataloader_val, args, config, writer, device, rank=0, world_size=1, parallel=False, cur_epoch=0):
+    def __init__(self, model, optimizer, dataloader_train, dataloader_val, args, config, writer, device, rank=0,
+                 world_size=1, parallel=False, cur_epoch=0):
         self.cur_epoch = cur_epoch
         self.bestval_epoch = cur_epoch
         self.train_loss = []
@@ -249,7 +287,7 @@ class Engine(object):
         self.model = model
         self.optimizer = optimizer
         self.dataloader_train = dataloader_train
-        self.dataloader_val   = dataloader_val
+        self.dataloader_val = dataloader_val
         self.args = args
         self.config = config
         self.writer = writer
@@ -258,10 +296,10 @@ class Engine(object):
         self.world_size = world_size
         self.parallel = parallel
         self.vis_save_path = self.args.logdir + r'/visualizations'
-        if(self.config.debug == True):
+        if (self.config.debug == True):
             pathlib.Path(self.vis_save_path).mkdir(parents=True, exist_ok=True)
 
-        self.detailed_losses         = config.detailed_losses
+        self.detailed_losses = config.detailed_losses
         if self.args.wp_only:
             detailed_losses_weights = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         else:
@@ -295,34 +333,44 @@ class Engine(object):
 
         ego_vel = data['speed'].to(self.device, dtype=torch.float32)
 
-        if ((self.args.backbone == 'transFuser') or (self.args.backbone == 'late_fusion') or (self.args.backbone == 'latentTF')):
+        if ((self.args.backbone == 'transFuser') or (self.args.backbone == 'late_fusion') or (
+                self.args.backbone == 'latentTF')):
             losses = self.model(rgb, lidar, ego_waypoint=ego_waypoint, target_point=target_point,
-                           target_point_image=target_point_image,
-                           ego_vel=ego_vel.reshape(-1, 1), bev=bev,
-                           label=label, save_path=self.vis_save_path,
-                           depth=depth, semantic=semantic, num_points=num_points)
+                                target_point_image=target_point_image,
+                                ego_vel=ego_vel.reshape(-1, 1), bev=bev,
+                                label=label, save_path=self.vis_save_path,
+                                depth=depth, semantic=semantic, num_points=num_points)
         elif (self.args.backbone == 'geometric_fusion'):
 
             bev_points = data['bev_points'].long().to('cuda', dtype=torch.int64)
             cam_points = data['cam_points'].long().to('cuda', dtype=torch.int64)
             losses = self.model(rgb, lidar, ego_waypoint=ego_waypoint, target_point=target_point,
-                           target_point_image=target_point_image,
-                           ego_vel=ego_vel.reshape(-1, 1), bev=bev,
-                           label=label, save_path=self.vis_save_path,
-                           depth=depth, semantic=semantic, num_points=num_points,
-                           bev_points=bev_points, cam_points=cam_points)
+                                target_point_image=target_point_image,
+                                ego_vel=ego_vel.reshape(-1, 1), bev=bev,
+                                label=label, save_path=self.vis_save_path,
+                                depth=depth, semantic=semantic, num_points=num_points,
+                                bev_points=bev_points, cam_points=cam_points)
         else:
-            raise ("The chosen vision backbone does not exist. The options are: transFuser, late_fusion, geometric_fusion, latentTF")
+            raise (
+                "The chosen vision backbone does not exist. The options are: transFuser, late_fusion, geometric_fusion, latentTF")
 
         return losses
 
-
     def train(self):
         self.model.train()
-
+        for param in self.model._model.image_encoder.modules():
+            # param.requires_grad = False
+            if isinstance(param, torch.nn.BatchNorm2d):
+                param.track_running_stats = False
+                param.eval()
+        for param in self.model._model.lidar_encoder.modules():
+            # param.requires_grad = False
+            if isinstance(param, torch.nn.BatchNorm2d):
+                param.track_running_stats = False
+                param.eval()
         num_batches = 0
         loss_epoch = 0.0
-        detailed_losses_epoch  = {key: 0.0 for key in self.detailed_losses}
+        detailed_losses_epoch = {key: 0.0 for key in self.detailed_losses}
         self.cur_epoch += 1
 
         # Train loop
@@ -342,14 +390,13 @@ class Engine(object):
 
         self.log_losses(loss_epoch, detailed_losses_epoch, num_batches, '')
 
-
-    @torch.inference_mode() # Faster version of torch_no_grad
+    @torch.inference_mode()  # Faster version of torch_no_grad
     def validate(self):
         self.model.eval()
 
         num_batches = 0
         loss_epoch = 0.0
-        detailed_val_losses_epoch  = {key: 0.0 for key in self.detailed_losses}
+        detailed_val_losses_epoch = {key: 0.0 for key in self.detailed_losses}
 
         # Evaluation loop loop
         for data in tqdm(self.dataloader_val):
@@ -379,19 +426,20 @@ class Engine(object):
 
         if (self.parallel == True):
             torch.distributed.gather_object(obj=detailed_losses_epoch,
-                                            object_gather_list=gathered_detailed_losses if self.rank == 0 else None, 
+                                            object_gather_list=gathered_detailed_losses if self.rank == 0 else None,
                                             dst=0)
-            torch.distributed.gather_object(obj=loss_epoch, 
+            torch.distributed.gather_object(obj=loss_epoch,
                                             object_gather_list=gathered_loss if self.rank == 0 else None,
                                             dst=0)
         else:
             gathered_detailed_losses[0] = detailed_losses_epoch
             gathered_loss[0] = loss_epoch
-            
+
         if (self.rank == 0):
             # Log main loss
             aggregated_total_loss = sum(gathered_loss) / len(gathered_loss)
             self.writer.add_scalar(prefix + 'loss_total', aggregated_total_loss, self.cur_epoch)
+            print(f"{prefix} loss_total: {aggregated_total_loss}, epoch: {self.cur_epoch}")
 
             # Log detailed losses
             for key, value in detailed_losses_epoch.items():
@@ -402,16 +450,18 @@ class Engine(object):
                 aggregated_value = aggregated_value / self.world_size
 
                 self.writer.add_scalar(prefix + key, aggregated_value, self.cur_epoch)
+                print(f"{prefix} {key}: {aggregated_value}, epoch: {self.cur_epoch}")
 
     def save(self):
         # NOTE saving the model with torch.save(model.module.state_dict(), PATH) if parallel processing is used would be cleaner, we keep it for backwards compatibility
         torch.save(self.model.state_dict(), os.path.join(self.args.logdir, 'model_%d.pth' % self.cur_epoch))
         torch.save(self.optimizer.state_dict(), os.path.join(self.args.logdir, 'optimizer_%d.pth' % self.cur_epoch))
 
+
 # We need to seed the workers individually otherwise random processes in the dataloader return the same values across workers!
 def seed_worker(worker_id):
     # Torch initial seed is properly set across the different workers, we need to pass it to numpy and random.
-    worker_seed = (torch.initial_seed()) % 2**32
+    worker_seed = (torch.initial_seed()) % 2 ** 32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
@@ -419,6 +469,6 @@ def seed_worker(worker_id):
 if __name__ == "__main__":
     # The default method fork can run into deadlocks.
     # To use the dataloader with multiple workers forkserver or spawn should be used.
-    #mp.set_start_method('fork')
-    #print("Start method of multiprocessing:", mp.get_start_method())
+    # mp.set_start_method('fork')
+    # print("Start method of multiprocessing:", mp.get_start_method())
     main()

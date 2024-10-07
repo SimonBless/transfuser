@@ -32,9 +32,9 @@ class GlobalConfig:
     augment = True
     inv_augment_prob = 0.1 # Probablity that data augmentation is applied is 1.0 - inv_augment_prob
     aug_max_rotation = 20 # degree
-    debug = False # If true the model in and outputs will be visualized and saved into Os variable Save_Path
+    debug = True # If true the model in and outputs will be visualized and saved into Os variable Save_Path
     sync_batch_norm = False # If this is true we convert the batch norms, to synced bach norms.
-    train_debug_save_freq = 50 # At which interval to save debug files to disk during training
+    train_debug_save_freq = 1000 # At which interval to save debug files to disk during training
 
     bb_confidence_threshold = 0.3 # Confidence of a bounding box that is needed for the detection to be accepted
 
@@ -241,6 +241,27 @@ class GlobalConfig:
                     if not os.path.isfile(os.path.join(self.root_dir, file)):
                         print("Val Folder: ", file)
                         self.val_data.append(os.path.join(self.root_dir, town, file))
+        elif (setting == 'validation'):
+            print("Use validation dataset")
+            self.train_towns = os.listdir(self.root_dir)[0]  # Scenario Folders
+            self.val_towns = os.listdir(self.root_dir)[1]  # Town 02 and 05 get selected automatically below
+            self.train_data, self.val_data = [], []
+            if self.train_towns.lower() != "training":
+                print("Error: Training dataset does not exist")
+            else:
+                train_dataset = os.listdir(os.path.join(self.root_dir, self.train_towns))
+                for scenario_folder in train_dataset:
+                    if not os.path.isfile(os.path.join(self.root_dir, scenario_folder)):
+                        print("Train Folder: ", scenario_folder)
+                        self.train_data.append(os.path.join(self.root_dir, self.train_towns, scenario_folder))
+            if self.val_towns.lower() != "validation":
+                print("Error: Validation dataset does not exist")
+            else:
+                val_dataset = os.listdir(os.path.join(self.root_dir, self.val_towns))
+                for scenario_folder in val_dataset:
+                    if not os.path.isfile(os.path.join(self.root_dir, scenario_folder)):
+                        print("Validation Folder: ", scenario_folder)
+                        self.val_data.append(os.path.join(self.root_dir, self.val_towns, scenario_folder))
         elif (setting == 'eval'): #No training data needed during evaluation.
             pass
         else:
@@ -248,3 +269,4 @@ class GlobalConfig:
 
         for k,v in kwargs.items():
             setattr(self, k, v)
+       # print(self.train_data, self.val_data)

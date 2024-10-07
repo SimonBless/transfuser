@@ -21,6 +21,7 @@ from shapely.geometry import Polygon
 import itertools
 import pathlib
 
+# For debugging purposes
 SAVE_PATH = os.environ.get('SAVE_PATH')
 ROUTE_COUNTER = 0
 
@@ -43,6 +44,7 @@ class HybridAgent(autonomous_agent.AutonomousAgent):
             self.save_path = f"{SAVE_PATH}/route{ROUTE_COUNTER}"
             pathlib.Path(self.save_path).mkdir(parents=True, exist_ok=True)
             ROUTE_COUNTER += 1
+            self.save_path_speed = f"{self.save_path}/speed{ROUTE_COUNTER}.csv"
 
         self.track = autonomous_agent.Track.SENSORS
         self.config_path = path_to_conf_file
@@ -104,8 +106,11 @@ class HybridAgent(autonomous_agent.AutonomousAgent):
                     net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(
                         net)  # Model was trained with Sync. Batch Norm. Need to convert it otherwise parameters will load incorrectly.
                 state_dict = torch.load(os.path.join(path_to_conf_file, file), map_location='cuda:0')
-                #state_dict = {k[7:]: v for k, v in state_dict.items()} # Removes the .module coming from the Distributed Training. Remove this if you want to evaluate a model trained without DDP.
-                net.load_state_dict(state_dict, strict=True)
+                if next(iter(state_dict.keys())).startswith('module.'):
+                    state_dict = {k[7:]: v for k, v in state_dict.items()} # Removes the .module coming from the Distributed Training. Remove this if you want to evaluate a model trained without DDP.
+                    print("Input model was trained in parallel. Changing model weight names accordingly!")
+                    print(next(iter(state_dict.keys())))
+                print(net.load_state_dict(state_dict, strict=False))
                 net.cuda()
                 net.eval()
                 self.nets.append(net)
@@ -246,6 +251,10 @@ class HybridAgent(autonomous_agent.AutonomousAgent):
         local_command_point = R.T.dot(local_command_point)
         result['target_point'] = tuple(local_command_point)
         #print(result)
+
+        with open(self.save_path_speed, "a") as f:
+            f.write(f"{str(speed)},{str(gps)},{str(compass)},{str(result['target_point'])},{str(pos)}" + "\n")
+            
         return result
 
     @torch.inference_mode()  # Faster version of torch_no_grad
