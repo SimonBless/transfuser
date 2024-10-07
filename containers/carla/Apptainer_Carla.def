@@ -1,0 +1,8 @@
+Bootstrap: docker-daemon
+From: carla:latest
+
+%startscript
+    /home/carla/CarlaUE4.sh -opengl --world-port=2000
+
+%runscript
+    /home/carla/CarlaUE4.sh -opengl --world-port=2000

@@ -1,0 +1,11 @@
+Bootstrap: docker
+From: simonbless/transfuser-agent:latest
+
+%post
+    pip install py-trees==0.8.3
+
+%startscript
+    /workspace/mount/datagen.sh training/scenarios/Scenario10/Town10HD_Scenario10.json training/routes/Scenario10/Town10HD_Scenario10.xml 8000
+
+%runscript
+    /workspace/mount/datagen.sh training/scenarios/Scenario10/Town10HD_Scenario10.json training/routes/Scenario10/Town10HD_Scenario10.xml 8000
