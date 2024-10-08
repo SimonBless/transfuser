@@ -178,16 +178,6 @@ def visualize_waypoint(waypoint, world, boundary_point=False, life_time=100):
             )
 
 
-#path = "/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/transfuser_github/transfuser/leaderboard/data/training/routes/highway/highway.xml"
-#output_path = "/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/transfuser_github/transfuser/leaderboard/data/training/scenarios/Scenario2/Town04_Scenario2_testing.json"
-#routes_path = "/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/transfuser_github/transfuser/leaderboard/data/training/routes"
-
-#workspace = "/home/simon/Documents/Studium/8.Semester/Bachelorarbeit_Autonomes_Fahren/transfuser_github/transfuser/leaderboard/data/training"
-#highway_route = workspace + "/routes/highway/highway.xml"
-#output_scenario = workspace + "/scenarios/Scenario2/Town04_Scenario2.json"
-#output_route = workspace + "/routes/Scenario2/Town04_Scenario2.xml"
-
-
 def main():
     """
     Generate Scenario2 configurations based on highway routes and save them as a JSON file.
@@ -313,13 +303,13 @@ def main():
                 }
             })
 
-    # Save the scenario dictionary to a JSON file with pretty formatting
     with open("Scenario2.json", 'w') as f:
         json.dump(scenario_dict, f, indent=2, sort_keys=True)
 
     # Print the counts of intersections and non-intersections encountered
     print(f"Intersections: {intersection_count}")
     print(f"Not intersections: {not_intersection_count}")
+
 
 if __name__ == "__main__":
     main()
